@@ -3,12 +3,13 @@ package require Tclx
 # Constants
 set refresh 1
 set pi 3.141592654
+set threeSixty [expr $pi * 2]
 #set pi 3.1415926535897932384626433832795
 
 set info(init_coord) {100 100}
-set info(units) 10
+set info(units) 5
 set info(line,width) 1
-set info(line,rotate_incr) [expr $pi / 2 ]
+set info(line,rotate_incr) [expr $pi / 8 ]
 set bufferList ""
 set directionList ""
 
@@ -74,8 +75,6 @@ proc rotate_line {rotate_dir} {
 	puts "new_full_coords= $new_full_coords"
 	.c coords guide_line $new_full_coords
 
-#canDrawLine $new_full_coords
-
 	# Update current guide point coordinates
 	set state(line,coord:cur) $new_coord
 
@@ -99,7 +98,6 @@ proc try_add_new_point {} {
 
 	# Make sure we actually can go forward
 	if {![canDrawLine [list $cen_x $cen_y $cur_x $cur_y]]} {
-		puts "cant draw line"
 		return 0
 	}
 
@@ -109,11 +107,13 @@ proc try_add_new_point {} {
 	set newCoord [list $cur_x $cur_y]
 	set newGuideCoords [list $cur_x $cur_y $newPoint_x $newPoint_y]
 
-	.c insert line end $newCoord
-	.c coords guide_line $newGuideCoords
-
+	# Update current state coords
 	set state(line,coord:cen) $state(line,coord:cur)
 	set state(line,coord:cur) [list $newPoint_x $newPoint_y]
+
+	# Update Canvas
+	.c insert line end $newCoord
+	.c coords guide_line $newGuideCoords
 
 	return 1
 }
@@ -170,6 +170,30 @@ proc buttonUp {} {
 
 
 proc automaticMove {} {
+	global info threeSixty
+puts ""
+
+	set spin [expr int(10 * rand())]
+	for {set i 0} {$i<=$spin} {incr i} {
+puts "Rotating..."
+		rotate_line cc
+	}
+
+	# Figure out how many increments each rotation counts toward
+	set increments [expr $threeSixty / $info(line,rotate_incr)]
+	set tries 0
+
+	while {$tries < $increments} {
+puts "Trying to move forward..."
+		set moved [try_add_new_point]
+		if (!$moved) {
+			rotate_line cc
+			incr tries
+		} else {
+			break;
+		}
+	}
+puts "Done"
 }
 
 
