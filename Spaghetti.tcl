@@ -1,32 +1,19 @@
 package require Tclx
 
 # Constants
-set refresh 1
-set pi 3.141592654
+set pi 3.1415926535897932384626433832795
 set threeSixty [expr $pi * 2]
-#set pi 3.1415926535897932384626433832795
 
-set info(init_coord) {100 100}
+set info(init_coord) {400 400}
 set info(units) 5
-set info(line,width) 1
-set info(line,rotate_incr) [expr $pi / 8 ]
-set bufferList ""
-set directionList ""
+set info(line,width) 2
+set info(line,rotate_incr) [expr $pi / 2 ]
 
 # Graphics Engine Configs
 set state(line,dir_angle:old) [expr $pi / 2]
 set state(line,dir_angle:cur) [expr $pi / 2]
 set state(line,coord:cen) $info(init_coord)
 set state(line,coord:cur) [list [lindex $info(init_coord) 0] [expr [lindex $info(init_coord) 1] - $info(units)]]
-set state(line,dir_vec) {0 $info(units)}
-
-canvas .c -background black
-pack .c -expand yes -fill both
-
-set init_coords [concat $info(init_coord) $info(init_coord)]
-set init_guide_coords [concat $info(init_coord) $state(line,coord:cur)]
-.c create line $init_coords -tag line -fill green -width $info(line,width)
-.c create line $init_guide_coords -tag guide_line -fill red -width $info(line,width)
 
 proc get_rotated_point {point_coord origin_coord theta_incr} {
 
@@ -68,11 +55,6 @@ proc rotate_line {rotate_dir} {
 
 	set new_full_coords [concat $cen_coord $new_coord]
 
-	puts "theta_incr= $theta_incr"
-	puts "cur_coord= $cur_coord"
-	puts "cen_coord= $cen_coord"
-	puts "new_coord= $new_coord"
-	puts "new_full_coords= $new_full_coords"
 	.c coords guide_line $new_full_coords
 
 	# Update current guide point coordinates
@@ -84,7 +66,7 @@ proc rotate_line {rotate_dir} {
 
 }
 
-proc try_add_new_point {} {
+proc addNewPoint { {restrict 1} } {
 	global state info
 
 	set theta $state(line,dir_angle:cur)
@@ -97,7 +79,7 @@ proc try_add_new_point {} {
 	lassign $state(line,coord:cur) cur_x cur_y
 
 	# Make sure we actually can go forward
-	if {![canDrawLine [list $cen_x $cen_y $cur_x $cur_y]]} {
+	if {$restrict && ![canDrawLine [list $cen_x $cen_y $cur_x $cur_y]]} {
 		return 0
 	}
 
@@ -118,22 +100,45 @@ proc try_add_new_point {} {
 	return 1
 }
 
+proc isOutOfBounds {checkPoint} {
+	lassign $checkPoint left top
+
+	if {$top < 0 || $left < 0} {
+		return 1
+	}
+
+	if {$top > [winfo height .c]} {
+		return 1
+	}
+
+	if {$left > [winfo width .c]} {
+		return 1
+	}
+
+	return 0
+}
+
 proc canDrawLine {lineCoords} {
 	global info
 
+	# Get the shorter line to check for interections
 	set shorterLine [getShortendGuideLine $lineCoords]
-
 	lassign $shorterLine x1 y1 x2 y2
+
+	# First make sure we're not out going of bounds
+	if {[isOutOfBounds [list $x2 $y2]]} {
+		return 0
+	}
 
 	set foundItems [.c find overlapping $x1 $y1 $x2 $y2]
 
 	foreach item $foundItems {
 		set tags [.c gettags $item]
-		puts "-> found intersecting tags: $tags"
 		if {[lcontain $tags line]} {
 			return 0
 		}
 	}
+
 	return 1
 }
 
@@ -144,12 +149,64 @@ proc getShortendGuideLine {lineCoords} {
 	# Need to move up line, a little bit so we're not already intersecting ourself
 	set totalDistance [expr sqrt( pow($x2-$x1,2) + pow($y2-$y1,2) ) ]
 	#set scaled [expr 2 / $totalDistance]
-	set scaled 0.2
+	set scaled 0.25
 
 	set xStart [expr (1 - $scaled) * $x1 + $scaled * $x2]
 	set yStart [expr (1 - $scaled) * $y1 + $scaled * $y2]
 
 	return [list $xStart $yStart $x2 $y2]
+}
+
+proc startNewLine {} {
+	global info state
+	set init_coords [concat $info(init_coord) $info(init_coord)]
+	set init_guide_coords [concat $info(init_coord) $state(line,coord:cur)]
+	.c create line $init_coords -tag line -fill green -width $info(line,width)
+	.c create line $init_guide_coords -tag guide_line -fill red -width $info(line,width)
+}
+
+proc relocateFromBeingStuck {} {
+}
+
+proc automaticMove {} {
+	global info threeSixty
+
+	set spin [expr int(50 * rand())]
+	if {$spin == 5} {
+		puts "gonna go erradic..."
+		rotate_line cc
+		set spin [expr int(10 * rand())]
+		for {set i 0} {$i<=$spin} {incr i} {
+			# TODO - call self recursively maybe??
+			addNewPoint
+		}
+	}
+
+	# Go clock-wise 2 times
+	rotate_line cw
+	rotate_line cw
+
+	# Figure out how many increments each rotation counts toward
+	set increments [expr $threeSixty / $info(line,rotate_incr)]
+	set tries 0
+
+	while {$tries < $increments} {
+		set moved [addNewPoint]
+		if (!$moved) {
+			rotate_line cc
+			incr tries
+		} else {
+			break;
+		}
+	}
+
+	if {$moved} {
+		return 1
+	} else {
+		puts "stuck"
+		#relocateFromBeingStuck
+		return 0
+	}
 }
 
 proc buttonDown {} {
@@ -169,50 +226,31 @@ proc buttonUp {} {
 }
 
 
-proc automaticMove {} {
-	global info threeSixty
-puts ""
-
-	set spin [expr int(10 * rand())]
-	for {set i 0} {$i<=$spin} {incr i} {
-puts "Rotating..."
-		rotate_line cc
+proc autoPilot {} {
+	set notStuck 1
+	while {$notStuck} {
+		after 1
+		set notStuck [automaticMove]
+		update
 	}
-
-	# Figure out how many increments each rotation counts toward
-	set increments [expr $threeSixty / $info(line,rotate_incr)]
-	set tries 0
-
-	while {$tries < $increments} {
-puts "Trying to move forward..."
-		set moved [try_add_new_point]
-		if (!$moved) {
-			rotate_line cc
-			incr tries
-		} else {
-			break;
-		}
-	}
-puts "Done"
 }
+
 
 
 bind . <ButtonPress-1> {buttonDown}
 bind . <ButtonRelease-1> {buttonUp}
 bind . <KeyPress-Left>  {rotate_line cc}
 bind . <KeyPress-Right> {rotate_line cw}
-bind . <KeyPress-Up>	{try_add_new_point}
+bind . <KeyPress-Up>	{addNewPoint 0}
 
-bind . <KeyPress-Down>  {automaticMove}
-
-
+bind . <KeyPress-Down>  {autoPilot}
 
 
 
+canvas .c -background black
+pack .c -expand yes -fill both
 
-
-
-
+startNewLine
 
 
 
