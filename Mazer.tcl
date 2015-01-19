@@ -6,8 +6,8 @@ set pi 3.141592654
 #set pi 3.1415926535897932384626433832795
 
 set info(init_coord) {100 100}
-set info(units) 30
-set info(line,width) 5
+set info(units) 10
+set info(line,width) 1
 set info(line,rotate_incr) [expr $pi / 2 ]
 set bufferList ""
 set directionList ""
@@ -118,22 +118,6 @@ proc try_add_new_point {} {
 	return 1
 }
 
-#try_add_new_point
-
-bind . <KeyPress-Left>  {rotate_line cc}
-bind . <KeyPress-Right> {rotate_line cw}
-bind . <KeyPress-Up>	{try_add_new_point}
-#bind . <KeyPress-Up>	{u}
-#bind . <KeyPress-Down>  {d}
-
-
-#if $flag(upKey_down)	then {new_dir_velocity_vec}
-#if $flag(leftKey_down)  then {rotate_ship [expr -1 * $sprite(ship,rotate_velocity)]}
-#if $flag(rightKey_down) then {rotate_ship $sprite(ship,rotate_velocity)}
-
-
-
-
 proc canDrawLine {lineCoords} {
 	global info
 
@@ -168,26 +152,6 @@ proc getShortendGuideLine {lineCoords} {
 	return [list $xStart $yStart $x2 $y2]
 }
 
-
-proc try_move_line {newCoords} {
-	global info
-
-	lassign $newCoords newX newY
-	set overlap_item_tags [.c gettags [.c find overlapping $newX $newY $newX $newY]]
-
-	if {![lcontain $overlap_item_tags line]} {
-
-		lassign $info(init_coord) curX curY
-
-# set info(init_coord) $newCoords
-
-		return 1
-	}
-	return 0
-}
-
-
-
 proc buttonDown {} {
 	global state info
 
@@ -197,20 +161,34 @@ proc buttonDown {} {
 	set longLine [list $cen_x $cen_y $cur_x $cur_y]
 	set shortLine [getShortendGuideLine [list $cen_x $cen_y $cur_x $cur_y]]
 
-# .c create line $shortLine -tag reference_line -fill orange -width $info(line,width)
-.c create rectangle $shortLine -tag reference_line -fill blue -outline blue -width 0.01
-
-puts " longLine: $longLine"
-puts "shortLine: $shortLine"
-
+	.c create rectangle $shortLine -tag reference_line -fill blue -outline blue -width 0.01
 }
 
 proc buttonUp {} {
 	.c delete reference_line
-	puts "hiding shortline"
 }
+
+
+proc automaticMove {} {
+}
+
 
 bind . <ButtonPress-1> {buttonDown}
 bind . <ButtonRelease-1> {buttonUp}
+bind . <KeyPress-Left>  {rotate_line cc}
+bind . <KeyPress-Right> {rotate_line cw}
+bind . <KeyPress-Up>	{try_add_new_point}
+
+bind . <KeyPress-Down>  {automaticMove}
+
+
+
+
+
+
+
+
+
+
 
 
